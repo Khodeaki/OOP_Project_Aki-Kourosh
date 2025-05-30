@@ -19,6 +19,12 @@ public:
     string getNodeName() {
         return nodeName;
     }
+    void addConnectedNode (string name){
+        connectedNodes.push_back(name) ;
+    }
+    void removeConnectedNod (string name){
+        connectedNodes.erase(remove(connectedNodes.begin(), connectedNodes.end(), name), connectedNodes.end());
+    }
 };
 
 
@@ -61,6 +67,11 @@ public:
             throw invalid_argument("Invalid input format: " + input);
         }
     }
+
+
+    string getNode1 () {return Node1Name ;}
+    string getNode2 () {return Node2Name ;}
+
 };
 
 
@@ -100,8 +111,11 @@ public:
 
 
 
-map<string, Nodes> nodes;
-vector<string> nodeNames;
+map <string , Nodes> nodes;
+vector <string> nodeNames;
+map <string , Resistor> resistors ;
+vector <string> resistorsNames ;
+
 class view {
 public:
     static void addNode (const string & nodeName){
@@ -149,8 +163,37 @@ public:
             cerr << "Error: Resistance cannot be zero or negative\n" ;
             return;
         }
-        // barresi tekrari naboodan esm moghavemat
+        if (resistors.find(name) != resistors.end()){
+            cerr << "Error: Resistor " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (nodes.find(words[2]) == nodes.end()){
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+        if (nodes.find(words[3]) == nodes.end()){
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
         Resistor R(name , words[2] , words[3] , val , pow) ;
+        resistors[name] = R ;
+        resistorsNames.push_back(name) ;
+        nodes[words[2]].addConnectedNode(words[3]) ;
+        nodes[words[3]].addConnectedNode(words[2]) ;
+    }
+    static void deleteResistor (string name) {
+        if (resistors.find(name) == resistors.end()){
+            cerr << "Error: Cannot delete resistor; component not found\n" ;
+            return ;
+        }
+        string node1 = resistors[name].getNode1() ;
+        string node2 = resistors[name].getNode2() ;
+        nodes[node1].removeConnectedNod(node2);
+        nodes[node2].removeConnectedNod(node1);
+        resistorsNames.erase(remove(resistorsNames.begin(), resistorsNames.end(), name), resistorsNames.end());
+        resistors.erase(name) ;
     }
 
     static void input_handelling(vector<string> words) {
@@ -182,7 +225,7 @@ public:
         }
         else if (words.size() == 2 && words[0] == "delete"){
             if (words[1][0] == 'R'){
-                // delete the R after checking
+                deleteResistor(words[1].substr(1)) ;
             }
         }
         else {
