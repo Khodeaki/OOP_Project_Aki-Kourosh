@@ -24,26 +24,91 @@ public:
 
 class Element {
 protected:
-    string type;
-    string Name;
-    string Node1Name;
-    string Node2Name;
-    double value;
+    string Name ;
+    string Node1Name ;
+    string Node2Name ;
+    double value ;
+    int pow10 ;
+
+public:
+    Element() : Name("") , Node1Name("") , Node2Name("") , value(0.0) , pow10(0) {}
+    Element (string NAme , string Node1 , string Node2 , double Value , int Pow) : Name(NAme) , Node1Name(Node1) , Node2Name(Node2) , value(Value) , pow10(Pow) {}
+
+    static void parsePhysicalValue(const string& input, double& value, int& pow10) {
+        regex pattern(R"(^\s*([+-]?\d+(\.\d+)?)([a-zA-Z]+|e\d+)?\s*$)");
+        smatch match;
+        if (regex_match(input, match, pattern)) {
+            value = std::stod(match[1]);
+
+            string suffix = match[3];
+
+            if (suffix.empty()) {
+                pow10 = 0;
+            } else if (suffix == "K") {
+                pow10 = 3;
+            } else if (suffix == "M" || suffix == "Meg") {
+                pow10 = 6;
+            } else if (suffix[0] == 'e') {
+                try {
+                    pow10 = stoi(suffix.substr(1));
+                } catch (...) {
+                    pow10 = 0;
+                }
+            } else {
+                pow10 = 0 ;
+            }
+        } else {
+            throw invalid_argument("Invalid input format: " + input);
+        }
+    }
 };
 
 
 class Resistor : public Element {
-
+public:
+    Resistor() : Element() {}
+    Resistor(string NAme, string Node1, string Node2, double Value, int Pow)
+            : Element(NAme, Node1, Node2, Value, Pow) {}
 };
 
-class capacitor : public  Element {
 
+class Capacitor : public  Element {
+public:
+    Capacitor() : Element() {}
+    Capacitor(string NAme, string Node1, string Node2, double Value, int Pow)
+    : Element(NAme, Node1, Node2, Value, Pow) {}
 };
+
+
+class Inductor : public Element {
+public:
+    Inductor() : Element() {}
+    Inductor(string NAme, string Node1, string Node2, double Value, int Pow)
+    : Element(NAme, Node1, Node2, Value, Pow) {}
+};
+
+
+class Diode : public Element {
+public:
+    Diode() : Element() {}
+    Diode(string NAme, string Node1, string Node2, double Value, int Pow)
+    : Element(NAme, Node1, Node2, Value, Pow) {}
+};
+
+
+
+
+
 
 map<string, Nodes> nodes;
 vector<string> nodeNames;
 class view {
 public:
+    static void addNode (const string & nodeName){
+        Nodes N(nodeName);
+        nodes[nodeName] = N;
+        nodeNames.push_back(nodeName);
+    }
     static void show_NodesList(vector<string> NodeNames) {
         cout << "Available nodes:\n";
         for (int i = 0; i < NodeNames.size() - 1; i++) {
@@ -75,12 +140,22 @@ public:
         cout << "SUCCESS: Node renamed from " << oldName << " to " << newName << endl;
         return true;
     }
+    static void addResistor (vector <string> words) {
+        string name = words[1].substr(1);
+        double val = 0.0;
+        int pow = -1 ;
+        Element::parsePhysicalValue(words[4] , val , pow) ;
+        if (val <= 0 || pow == -1){
+            cerr << "Error: Resistance cannot be zero or negative\n" ;
+            return;
+        }
+        // barresi tekrari naboodan esm moghavemat
+        Resistor R(name , words[2] , words[3] , val , pow) ;
+    }
 
     static void input_handelling(vector<string> words) {
         if (words.size() >= 3 && words[0] == "add" && words[1] == "node") {
-            Nodes N(words[2]);
-            nodes[words[2]] = N;
-            nodeNames.push_back(words[2]);
+            view::addNode(words[2]) ;
         }
         else if (words[0] == ".rename") {
             if (words[1] == "node") {
@@ -95,6 +170,20 @@ public:
         }
         else if (words.size() == 1 && words[0] == ".nodes") {
             view::show_NodesList(nodeNames);
+        }
+        else if (words.size() == 5 && words[0] == "add" ){
+            if(words[1][0] == 'R'){
+                addResistor(words) ;
+            }
+            else {
+                cerr << "Error: Element "<< words[1].substr(1) <<" not found in library\n" ;
+            }
+            // put all adds here
+        }
+        else if (words.size() == 2 && words[0] == "delete"){
+            if (words[1][0] == 'R'){
+                // delete the R after checking
+            }
         }
         else {
             cerr << "Error: Syntax error\n";
