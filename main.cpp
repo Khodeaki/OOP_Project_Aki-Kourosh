@@ -6,7 +6,7 @@ class Nodes {
 private:
     string nodeName;
     double nodeVoltage;
-    vector<string> connectedNodes;
+    vector<string> connectedNodes; // nodes remain after deleting components so we have to delete them if the size is 0 .
 public:
     Nodes() : nodeName(""), nodeVoltage(0.0) {}
 
@@ -33,8 +33,8 @@ protected:
     string Name ;
     string Node1Name ;
     string Node2Name ;
-    double value ;
-    int pow10 ;
+    double value ; // baraye diode voltage roshan shodan   D:0   Z:0.7
+    int pow10 ; // baraye diode 0
 
 public:
     Element() : Name("") , Node1Name("") , Node2Name("") , value(0.0) , pow10(0) {}
@@ -50,11 +50,18 @@ public:
 
             if (suffix.empty()) {
                 pow10 = 0;
-            } else if (suffix == "K") {
+            } else if (suffix == "K" || suffix == "k") {
                 pow10 = 3;
             } else if (suffix == "M" || suffix == "Meg") {
                 pow10 = 6;
-            } else if (suffix[0] == 'e') {
+            } else if (suffix == "u"){
+                pow10 = -6;
+            } else if (suffix == "n"){
+                pow10 = -12;
+            } else if (suffix == "m"){
+                pow10 = -3;
+            }
+            else if (suffix[0] == 'e') {
                 try {
                     pow10 = stoi(suffix.substr(1));
                 } catch (...) {
@@ -67,7 +74,6 @@ public:
             throw invalid_argument("Invalid input format: " + input);
         }
     }
-
 
     string getNode1 () {return Node1Name ;}
     string getNode2 () {return Node2Name ;}
@@ -102,8 +108,8 @@ public:
 class Diode : public Element {
 public:
     Diode() : Element() {}
-    Diode(string NAme, string Node1, string Node2, double Value, int Pow)
-    : Element(NAme, Node1, Node2, Value, Pow) {}
+    Diode(string NAme, string Node1, string Node2, double Voltage)
+    : Element(NAme, Node1, Node2, Voltage, 0) {}
 };
 
 
@@ -111,10 +117,17 @@ public:
 
 
 
-map <string , Nodes> nodes;
-vector <string> nodeNames;
+map <string , Nodes> nodes ;
+vector <string> nodeNames ;
 map <string , Resistor> resistors ;
 vector <string> resistorsNames ;
+map <string , Capacitor> capacitors ;
+vector <string>  capacitorNames ;
+map <string , Inductor> inductors ;
+vector <string> inductorNames ;
+map <string , Diode> Diodes ;
+vector <string> DiodeNames ;
+
 
 class view {
 public:
@@ -182,7 +195,101 @@ public:
         resistorsNames.push_back(name) ;
         nodes[words[2]].addConnectedNode(words[3]) ;
         nodes[words[3]].addConnectedNode(words[2]) ;
+        cout << "Resistor " << name << " with resistance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
     }
+    static void addCapacitor (vector <string> words) {
+        string name = words[1].substr(1);
+        double val = 0.0;
+        int pow = -1 ;
+        Element::parsePhysicalValue(words[4] , val , pow) ;
+        if (val <= 0 || pow == -1){
+            cerr << "Error: Capacitor cannot be zero or negative\n" ;
+            return;
+        }
+        if (capacitors.find(name) != capacitors.end()){
+            cerr << "Error: Capacitor " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (nodes.find(words[2]) == nodes.end()){
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+        if (nodes.find(words[3]) == nodes.end()){
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+        Capacitor C(name , words[2] , words[3] , val , pow) ;
+        capacitors[name] = C ;
+        capacitorNames.push_back(name) ;
+        nodes[words[2]].addConnectedNode(words[3]) ;
+        nodes[words[3]].addConnectedNode(words[2]) ;
+        cout << "Capacitor " << name << " with capacitance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
+    }
+
+    static void addInductor (vector <string> words) {
+        string name = words[1].substr(1);
+        double val = 0.0;
+        int pow = -1 ;
+        Element::parsePhysicalValue(words[4] , val , pow) ;
+        if (val <= 0 || pow == -1){
+            cerr << "Error: Inductor cannot be zero or negative\n" ;
+            return;
+        }
+        if (inductors.find(name) != inductors.end()){
+            cerr << "Error: inductor " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (nodes.find(words[2]) == nodes.end()){
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+        if (nodes.find(words[3]) == nodes.end()){
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+        Inductor L(name , words[2] , words[3] , val , pow) ;
+        inductors[name] = L ;
+        inductorNames.push_back(name) ;
+        nodes[words[2]].addConnectedNode(words[3]) ;
+        nodes[words[3]].addConnectedNode(words[2]) ;
+        cout << "Inductor " << name << " with inductance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
+    }
+
+    static void addDiode (vector <string> words) {
+        string name = words[1].substr(1);
+        string model = words[4] ;
+        if (model != "D" && model !="Z"){
+            cerr << "Error: Model "<<model<<" not found in library" ;
+            return;
+        }
+        if (Diodes.find(name) != Diodes.end()){
+            cerr << "Error: diode " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (nodes.find(words[2]) == nodes.end()){
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+        if (nodes.find(words[3]) == nodes.end()){
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+        double voltage = 0 ;
+        if (model == "Z") {voltage = 0.7 ;}
+        Diode D(name , words[2] , words[3] , voltage) ;
+        Diodes[name] = D ;
+        DiodeNames.push_back(name) ;
+        nodes[words[2]].addConnectedNode(words[3]) ;
+        nodes[words[3]].addConnectedNode(words[2]) ;
+        cout << "diode " << name << " with model " << model << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
+    }
+
     static void deleteResistor (string name) {
         if (resistors.find(name) == resistors.end()){
             cerr << "Error: Cannot delete resistor; component not found\n" ;
@@ -194,6 +301,49 @@ public:
         nodes[node2].removeConnectedNod(node1);
         resistorsNames.erase(remove(resistorsNames.begin(), resistorsNames.end(), name), resistorsNames.end());
         resistors.erase(name) ;
+        cout << "Resistor " << name << " deleted successful." << endl;
+    }
+
+    static void deleteCapacitor (string name) {
+        if (capacitors.find(name) == capacitors.end()){
+            cerr << "Error: Cannot delete capacitor; component not found\n" ;
+            return ;
+        }
+        string node1 = capacitors[name].getNode1() ;
+        string node2 = capacitors[name].getNode2() ;
+        nodes[node1].removeConnectedNod(node2);
+        nodes[node2].removeConnectedNod(node1);
+        capacitorNames.erase(remove(capacitorNames.begin(), capacitorNames.end(), name), capacitorNames.end());
+        capacitors.erase(name) ;
+        cout << "Capacitor " << name << " deleted successful." << endl;
+    }
+
+    static void deleteInductor (string name) {
+        if (inductors.find(name) == inductors.end()){
+            cerr << "Error: Cannot delete inductor; component not found\n" ;
+            return ;
+        }
+        string node1 = inductors[name].getNode1() ;
+        string node2 = inductors[name].getNode2() ;
+        nodes[node1].removeConnectedNod(node2);
+        nodes[node2].removeConnectedNod(node1);
+        inductorNames.erase(remove(inductorNames.begin(), inductorNames.end(), name), inductorNames.end());
+        inductors.erase(name) ;
+        cout << "Inductor " << name << " deleted successful." << endl;
+    }
+
+    static void deleteDiode (string name) {
+        if (Diodes.find(name) == Diodes.end()){
+            cerr << "Error: Cannot delete diode; component not found\n" ;
+            return ;
+        }
+        string node1 = Diodes[name].getNode1() ;
+        string node2 = Diodes[name].getNode2() ;
+        nodes[node1].removeConnectedNod(node2);
+        nodes[node2].removeConnectedNod(node1);
+        DiodeNames.erase(remove(DiodeNames.begin(), DiodeNames.end(), name), DiodeNames.end());
+        Diodes.erase(name) ;
+        cout << "Diode " << name << " deleted successful." << endl;
     }
 
     static void input_handelling(vector<string> words) {
@@ -215,8 +365,14 @@ public:
             view::show_NodesList(nodeNames);
         }
         else if (words.size() == 5 && words[0] == "add" ){
-            if(words[1][0] == 'R'){
+            if (words[1][0] == 'R'){
                 addResistor(words) ;
+            } else if (words[1][0] == 'C'){
+                addCapacitor(words) ;
+            } else if (words[1][0] == 'L'){
+                addInductor(words) ;
+            } else if (words[1][0] == 'D'){
+                addDiode(words) ;
             }
             else {
                 cerr << "Error: Element "<< words[1].substr(1) <<" not found in library\n" ;
@@ -226,6 +382,15 @@ public:
         else if (words.size() == 2 && words[0] == "delete"){
             if (words[1][0] == 'R'){
                 deleteResistor(words[1].substr(1)) ;
+            } else if (words[1][0] == 'C'){
+                deleteCapacitor(words[1].substr(1)) ;
+            } else if (words[1][0] == 'L'){
+                deleteInductor(words[1].substr(1)) ;
+            } else if (words[1][0] == 'D'){
+                deleteDiode(words[1].substr(1)) ;
+            }
+            else {
+                cerr << "Error: Syntax error\n";
             }
         }
         else {
