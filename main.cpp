@@ -42,12 +42,12 @@ public:
     Element() : Name("") , Node1Name("") , Node2Name("") , value(0.0) , pow10(0) {}
     Element (string NAme , string Node1 , string Node2 , double Value , int Pow) : Name(NAme) , Node1Name(Node1) , Node2Name(Node2) , value(Value) , pow10(Pow) {}
 
-    static void parsePhysicalValue(const string& input, double& value, int& pow10 , int trueValue) {
+    static void parsePhysicalValue(const string& input, double& value, int& pow10 , int &trueValue) {
         regex pattern(R"(^\s*([+-]?\d+(\.\d+)?)([a-zA-Z]+|e[+-]?\d+)?\s*$)");
         smatch match;
 
         if (!regex_match(input, match, pattern)) {
-            cerr << "Error: Syntax error" << endl;
+            cerr << "Error: invalid value" << endl;
             trueValue = -1 ;
             return;
         }
@@ -78,15 +78,62 @@ public:
                 pow10 = stoi(suffix.substr(1));
             } catch (...) {
                 cerr << "Error: Syntax error" << endl;
-                trueValue = -1 ;
                 return;
             }
         } else {
             cerr << "Error: Syntax error" << endl;
-            trueValue = -1 ;
             return;
         }
     }
+    static void extractPhysicalValue(const string& input, double& value, int& pow10, int& trueValue) {
+        regex pattern(R"(^\s*([+-]?\d+(\.\d+)?)([a-zA-Z]+|e[+-]?\d+)?\s*$)");
+        smatch match;
+
+        if (!regex_match(input, match, pattern)) {
+            trueValue = -1;
+            return;
+        }
+
+        try {
+            value = stod(match[1]);
+        } catch (...) {
+            trueValue = -1;
+            return;
+        }
+
+        string suffix = match[3];
+        trueValue = 1;
+
+        if (suffix.empty()) {
+            pow10 = 0;
+        } else if (suffix == "K" || suffix == "k") {
+            pow10 = 3;
+        } else if (suffix == "M" || suffix == "Meg") {
+            pow10 = 6;
+        } else if (suffix == "u") {
+            pow10 = -6;
+        } else if (suffix == "n") {
+            pow10 = -9;
+        } else if (suffix == "m") {
+            pow10 = -3;
+        } else if (suffix[0] == 'e') {
+            try {
+                pow10 = stoi(suffix.substr(1));
+            } catch (...) {
+                trueValue = -1;
+                return;
+            }
+        } else {
+            trueValue = -1;
+            return;
+        }
+    }
+
+    static bool isValidDecimal(const string& input) {
+        regex pattern(R"(^[+-]?(\d+(\.\d*)?|\.\d+)$)");
+        return regex_match(input, pattern);
+    }
+
     string getNode1 () {return Node1Name ;}
     string getNode2 () {return Node2Name ;}
 };
@@ -123,23 +170,51 @@ public:
     : Element(NAme, Node1, Node2, Voltage, 0) {}
 };
 
+class VoltageSource : public Element {
+public:
+    VoltageSource() : Element() {}
+    VoltageSource(string NAme, string Node1, string Node2, double Voltage , int pow)
+    : Element(NAme, Node1, Node2, Voltage, pow) {}
+};
+
+class CurrentSource : public Element {
+public:
+    CurrentSource(string NAme, string Node1, string Node2, double current , int pow)
+    : Element(NAme, Node1, Node2, current , pow) {}
+
+    CurrentSource() : Element() {}
+};
+
+class SinusoidalSource : public VoltageSource {
+
+};
 
 
-
-
+vector <string> components ;
 
 map <string , Nodes> nodes ;
 vector <string> nodeNames ;
+
 map <string , Resistor> resistors ;
 vector <string> resistorsNames ;
+
 map <string , Capacitor> capacitors ;
 vector <string>  capacitorNames ;
+
 map <string , Inductor> inductors ;
 vector <string> inductorNames ;
+
 map <string , Diode> Diodes ;
 vector <string> DiodeNames ;
-vector <string> components ;
 
+map <string , VoltageSource> voltageSources ;
+vector <string> voltageSourceName ;
+
+map <string , CurrentSource> currentSources ;
+vector <string> currentSourceName ;
+
+map <string , SinusoidalSource> sinusoidalSources ;
+vector <string> SinusoidalSourceNames;
 
 class view {
 public:
@@ -191,19 +266,7 @@ public:
         }
         string name = words[1].substr(1);
         if (name == ""){
-            cerr << "Error: Syntax error\n" ;
-            return;
-        }
-        double val = 0.0;
-        int pow = -1 ;
-        int trueValue = 0 ;
-        Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
-        if (trueValue == -1 ){
-            cerr << "Error: Syntax error" << endl;
-            return;
-        }
-        if (val <= 0 || pow == -1){
-            cerr << "Error: Resistance cannot be zero or negative\n" ;
+            cerr << "Error: empty name\n" ;
             return;
         }
         if (resistors.find(name) != resistors.end()){
@@ -212,6 +275,17 @@ public:
         }
         if (words[2] == words[3]){
             cerr << "Error: nodes must be different\n" ;
+            return;
+        }
+        double val = 0.0;
+        int pow = -1 ;
+        int trueValue = 0 ;
+        Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
+        if (trueValue == -1 ){
+            return;
+        }
+        if (val <= 0 || pow == -1){
+            cerr << "Error: Resistance cannot be zero or negative\n" ;
             return;
         }
         if (nodes.find(words[2]) == nodes.end()){
@@ -239,7 +313,15 @@ public:
         }
         string name = words[1].substr(1);
         if (name == ""){
-            cerr << "Error: Syntax error\n" ;
+            cerr << "Error: empty name\n" ;
+            return;
+        }
+        if (capacitors.find(name) != capacitors.end()){
+            cerr << "Error: Capacitor " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (words[2] == words[3]){
+            cerr << "Error: nodes must be different\n" ;
             return;
         }
         double val = 0.0;
@@ -247,15 +329,10 @@ public:
         int trueValue = 0 ;
         Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
         if (trueValue == -1 ){
-            cerr << "Error: Syntax error" << endl;
             return;
         }
         if (val <= 0 || pow == -1){
             cerr << "Error: Capacitor cannot be zero or negative\n" ;
-            return;
-        }
-        if (capacitors.find(name) != capacitors.end()){
-            cerr << "Error: Capacitor " << name << " already exists in the circuit\n" ;
             return;
         }
         if (nodes.find(words[2]) == nodes.end()){
@@ -284,7 +361,15 @@ public:
         }
         string name = words[1].substr(1);
         if (name == ""){
-            cerr << "Error: Syntax error\n" ;
+            cerr << "Error: empty name\n" ;
+            return;
+        }
+        if (inductors.find(name) != inductors.end()){
+            cerr << "Error: inductor " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (words[2] == words[3]){
+            cerr << "Error: nodes must be different\n" ;
             return;
         }
         double val = 0.0;
@@ -292,15 +377,10 @@ public:
         int trueValue = 0 ;
         Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
         if (trueValue == -1 ){
-            cerr << "Error: Syntax error" << endl;
             return;
         }
         if (val <= 0 || pow == -1){
             cerr << "Error: Inductor cannot be zero or negative\n" ;
-            return;
-        }
-        if (inductors.find(name) != inductors.end()){
-            cerr << "Error: inductor " << name << " already exists in the circuit\n" ;
             return;
         }
         if (nodes.find(words[2]) == nodes.end()){
@@ -329,16 +409,20 @@ public:
         }
         string name = words[1].substr(1);
         if (name == ""){
-            cerr << "Error: Syntax error\n" ;
-            return;
-        }
-        string model = words[4] ;
-        if (model != "D" && model !="Z"){
-            cerr << "Error: Model "<<model<<" not found in library" ;
+            cerr << "Error: empty name\n" ;
             return;
         }
         if (Diodes.find(name) != Diodes.end()){
             cerr << "Error: diode " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (words[2] == words[3]){
+            cerr << "Error: nodes must be different\n" ;
+            return;
+        }
+        string model = words[4] ;
+        if (model != "D" && model !="Z"){
+            cerr << "Error: Model "<< model <<" not found in library" ;
             return;
         }
         if (nodes.find(words[2]) == nodes.end()){
@@ -362,14 +446,14 @@ public:
         cout << "diode " << name << " with model " << model << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
     }
 
-    static void addGround (vector <string> ff){
-        if (ff.size() != 3){
+    static void addGround (vector <string> words){
+        if (words.size() != 3){
             cerr << "Error: Syntax error\n" ;
             return;
         }
-        string name = ff[2] ;
+        string name = words[2] ;
         if (name == ""){
-            cerr << "Error: Syntax error\n" ;
+            cerr << "Error: empty name\n" ;
             return;
         }
         if (nodes.find(name) == nodes.end()){
@@ -381,6 +465,72 @@ public:
         components.push_back("GND");
         cout << "Node " << name << " set as ground.\n" ;
     }
+
+    static void addVoltageSource (vector <string> words) {
+        if (words.size() != 5){
+            cerr << " Error: Syntax error\n" ;
+            return;
+        }
+        string name = words[1].substr(13);
+        if (voltageSources.find(name) != voltageSources.end()){
+            cerr << "Error: voltageSource " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (words[2] == words[3]){
+            cerr << "Error: nodes must be different\n" ;
+            return;
+        }
+        if (Element::isValidDecimal(words[4]) == false){
+            cerr << "invalid voltage.\n" ;
+            return;
+        }
+        double val = 0.0;
+        int pow = -1 ;
+        int trueValue = 0 ;
+        Element::extractPhysicalValue(words[4] , val , pow , trueValue) ;
+        VoltageSource V(name , words[2] , words[3] , val , pow) ;
+        voltageSources[name] = V ;
+        voltageSourceName.push_back(name) ;
+        components.push_back("V"+name) ;
+        nodes[words[2]].addConnectedNode(words[3]) ;
+        nodes[words[3]].addConnectedNode(words[2]) ;
+        cout << "VoltageSource " << name << " with voltage " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
+    }
+
+    static void addCurrentSource (vector <string> words) {
+        if (words.size() != 5){
+            cerr << " Error: Syntax error\n" ;
+            return;
+        }
+        string name = words[1].substr(13);
+        if (currentSources.find(name) != currentSources.end()){
+            cerr << "Error: currentSource " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (words[2] == words[3]){
+            cerr << "Error: nodes must be different\n" ;
+            return;
+        }
+        if (Element::isValidDecimal(words[4]) == false){
+            cerr << "invalid current.\n" ;
+            return;
+        }
+        double val = 0.0;
+        int pow = -1 ;
+        int trueValue = 0 ;
+        Element::extractPhysicalValue(words[4] , val , pow , trueValue) ;
+        CurrentSource C(name , words[2] , words[3] , val , pow) ;
+        currentSources[name] = C ;
+        currentSourceName.push_back(name) ;
+        components.push_back("I"+name) ;
+        nodes[words[2]].addConnectedNode(words[3]) ;
+        nodes[words[3]].addConnectedNode(words[2]) ;
+        cout << "CurrentSource " << name << " with current " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
+    }
+
+    static void addSinusoidalSource (vector <string> words) {
+
+    };
 
     static void deleteResistor (string name) {
         if (resistors.find(name) == resistors.end()){
@@ -489,6 +639,26 @@ public:
         }
         cout <<"D"<< DiodeNames[DiodeNames.size()-1] << '\n' ;
     }
+    static void displayVoltageSources () {
+        if (voltageSourceName.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<voltageSourceName.size()-1 ; i++){
+            cout << "V" << voltageSourceName[i] << ", " ;
+        }
+        cout << "V" << voltageSourceName[voltageSourceName.size()-1] << '\n' ;
+    }
+    static void displayCurrentSources () {
+        if (currentSourceName.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<currentSourceName.size()-1 ; i++){
+            cout << "I" << currentSourceName[i] << ", " ;
+        }
+        cout << "I" << currentSourceName[currentSourceName.size()-1] << '\n' ;
+    }
 
     static void input_handelling(vector<string> words) {
         if (words.size() >= 3 && words[0] == "add" && words[1] == "node") {
@@ -508,6 +678,10 @@ public:
             if (words[1][0] == 'R'){
                 addResistor(words) ;
             } else if (words[1][0] == 'C'){
+                if (words[1].substr(0,13) == "CurrentSource"){
+                    addCurrentSource(words)  ;
+                    return;
+                }
                 addCapacitor(words) ;
             } else if (words[1][0] == 'L'){
                 addInductor(words) ;
@@ -515,6 +689,14 @@ public:
                 addDiode(words) ;
             } else if (words[1] == "GND"){
                 addGround(words) ;
+            } else if (words[1][0] == 'V'){ //consider there is no space between "VoltageSource" & the name
+                if (words[1].substr(0,13) == "VoltageSource"){
+                    addVoltageSource(words) ;
+                    return;
+                }
+                else {
+                    cerr << "Error: Syntax Error.\n " ;
+                }
             }
             else {
                 cerr << "Error: Element "<< words[1].substr(1) <<" not found in library\n" ;
@@ -545,9 +727,14 @@ public:
                     displayInductors();
                 } else if (words[1] == "D"){
                     displayDiodes() ;
-                } else if (words[0] == "C"){
+                } else if (words[1] == "C"){
                     displayCapacitors() ;
+                } else if (words[1] == "V"){
+                    displayVoltageSources() ;
+                } else if (words[1] =="I"){
+                    displayCurrentSources();
                 }
+
             }
         }
         else {
