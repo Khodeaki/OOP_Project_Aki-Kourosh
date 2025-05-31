@@ -4,9 +4,10 @@ using namespace std;
 
 class Nodes {
 private:
-    string nodeName;
-    double nodeVoltage;
+    string nodeName ;
+    double nodeVoltage ;
     vector<string> connectedNodes; // nodes remain after deleting components so we have to delete them if the size is 0 .
+    bool isGround  = false ;
 public:
     Nodes() : nodeName(""), nodeVoltage(0.0) {}
 
@@ -25,6 +26,7 @@ public:
     void removeConnectedNod (string name){
         connectedNodes.erase(remove(connectedNodes.begin(), connectedNodes.end(), name), connectedNodes.end());
     }
+    void setGround () {isGround = true;}
 };
 
 
@@ -40,44 +42,53 @@ public:
     Element() : Name("") , Node1Name("") , Node2Name("") , value(0.0) , pow10(0) {}
     Element (string NAme , string Node1 , string Node2 , double Value , int Pow) : Name(NAme) , Node1Name(Node1) , Node2Name(Node2) , value(Value) , pow10(Pow) {}
 
-    static void parsePhysicalValue(const string& input, double& value, int& pow10) {
-        regex pattern(R"(^\s*([+-]?\d+(\.\d+)?)([a-zA-Z]+|e\d+)?\s*$)");
+    static void parsePhysicalValue(const string& input, double& value, int& pow10 , int trueValue) {
+        regex pattern(R"(^\s*([+-]?\d+(\.\d+)?)([a-zA-Z]+|e[+-]?\d+)?\s*$)");
         smatch match;
-        if (regex_match(input, match, pattern)) {
-            value = std::stod(match[1]);
 
-            string suffix = match[3];
+        if (!regex_match(input, match, pattern)) {
+            cerr << "Error: Syntax error" << endl;
+            trueValue = -1 ;
+            return;
+        }
 
-            if (suffix.empty()) {
-                pow10 = 0;
-            } else if (suffix == "K" || suffix == "k") {
-                pow10 = 3;
-            } else if (suffix == "M" || suffix == "Meg") {
-                pow10 = 6;
-            } else if (suffix == "u"){
-                pow10 = -6;
-            } else if (suffix == "n"){
-                pow10 = -12;
-            } else if (suffix == "m"){
-                pow10 = -3;
-            }
-            else if (suffix[0] == 'e') {
-                try {
-                    pow10 = stoi(suffix.substr(1));
-                } catch (...) {
-                    pow10 = 0;
-                }
-            } else {
-                pow10 = 0 ;
+        try {
+            value = stod(match[1]);
+        } catch (...) {
+            cerr << "Error: Syntax error" << endl;
+            return;
+        }
+
+        string suffix = match[3];
+
+        if (suffix.empty()) {
+            pow10 = 0;
+        } else if (suffix == "K" || suffix == "k") {
+            pow10 = 3;
+        } else if (suffix == "M" || suffix == "Meg") {
+            pow10 = 6;
+        } else if (suffix == "u") {
+            pow10 = -6;
+        } else if (suffix == "n") {
+            pow10 = -9;
+        } else if (suffix == "m") {
+            pow10 = -3;
+        } else if (suffix[0] == 'e') {
+            try {
+                pow10 = stoi(suffix.substr(1));
+            } catch (...) {
+                cerr << "Error: Syntax error" << endl;
+                trueValue = -1 ;
+                return;
             }
         } else {
-            throw invalid_argument("Invalid input format: " + input);
+            cerr << "Error: Syntax error" << endl;
+            trueValue = -1 ;
+            return;
         }
     }
-
     string getNode1 () {return Node1Name ;}
     string getNode2 () {return Node2Name ;}
-
 };
 
 
@@ -127,11 +138,17 @@ map <string , Inductor> inductors ;
 vector <string> inductorNames ;
 map <string , Diode> Diodes ;
 vector <string> DiodeNames ;
+vector <string> components ;
 
 
 class view {
 public:
-    static void addNode (const string & nodeName){
+    static void addNode (vector <string> words){
+        if (words.size() != 3){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
+        string nodeName = words[2] ;
         Nodes N(nodeName);
         nodes[nodeName] = N;
         nodeNames.push_back(nodeName);
@@ -168,16 +185,33 @@ public:
         return true;
     }
     static void addResistor (vector <string> words) {
+        if (words.size() != 5){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         string name = words[1].substr(1);
+        if (name == ""){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         double val = 0.0;
         int pow = -1 ;
-        Element::parsePhysicalValue(words[4] , val , pow) ;
+        int trueValue = 0 ;
+        Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
+        if (trueValue == -1 ){
+            cerr << "Error: Syntax error" << endl;
+            return;
+        }
         if (val <= 0 || pow == -1){
             cerr << "Error: Resistance cannot be zero or negative\n" ;
             return;
         }
         if (resistors.find(name) != resistors.end()){
             cerr << "Error: Resistor " << name << " already exists in the circuit\n" ;
+            return;
+        }
+        if (words[2] == words[3]){
+            cerr << "Error: nodes must be different\n" ;
             return;
         }
         if (nodes.find(words[2]) == nodes.end()){
@@ -193,15 +227,29 @@ public:
         Resistor R(name , words[2] , words[3] , val , pow) ;
         resistors[name] = R ;
         resistorsNames.push_back(name) ;
+        components.push_back("R"+name);
         nodes[words[2]].addConnectedNode(words[3]) ;
         nodes[words[3]].addConnectedNode(words[2]) ;
         cout << "Resistor " << name << " with resistance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
     }
     static void addCapacitor (vector <string> words) {
+        if (words.size() != 5){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         string name = words[1].substr(1);
+        if (name == ""){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         double val = 0.0;
         int pow = -1 ;
-        Element::parsePhysicalValue(words[4] , val , pow) ;
+        int trueValue = 0 ;
+        Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
+        if (trueValue == -1 ){
+            cerr << "Error: Syntax error" << endl;
+            return;
+        }
         if (val <= 0 || pow == -1){
             cerr << "Error: Capacitor cannot be zero or negative\n" ;
             return;
@@ -223,16 +271,30 @@ public:
         Capacitor C(name , words[2] , words[3] , val , pow) ;
         capacitors[name] = C ;
         capacitorNames.push_back(name) ;
+        components.push_back("L"+name);
         nodes[words[2]].addConnectedNode(words[3]) ;
         nodes[words[3]].addConnectedNode(words[2]) ;
         cout << "Capacitor " << name << " with capacitance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
     }
 
     static void addInductor (vector <string> words) {
+        if (words.size() != 5){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         string name = words[1].substr(1);
+        if (name == ""){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         double val = 0.0;
         int pow = -1 ;
-        Element::parsePhysicalValue(words[4] , val , pow) ;
+        int trueValue = 0 ;
+        Element::parsePhysicalValue(words[4] , val , pow , trueValue) ;
+        if (trueValue == -1 ){
+            cerr << "Error: Syntax error" << endl;
+            return;
+        }
         if (val <= 0 || pow == -1){
             cerr << "Error: Inductor cannot be zero or negative\n" ;
             return;
@@ -254,13 +316,22 @@ public:
         Inductor L(name , words[2] , words[3] , val , pow) ;
         inductors[name] = L ;
         inductorNames.push_back(name) ;
+        components.push_back("L"+name) ;
         nodes[words[2]].addConnectedNode(words[3]) ;
         nodes[words[3]].addConnectedNode(words[2]) ;
         cout << "Inductor " << name << " with inductance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
     }
 
     static void addDiode (vector <string> words) {
+        if (words.size() != 5){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         string name = words[1].substr(1);
+        if (name == ""){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
         string model = words[4] ;
         if (model != "D" && model !="Z"){
             cerr << "Error: Model "<<model<<" not found in library" ;
@@ -285,9 +356,30 @@ public:
         Diode D(name , words[2] , words[3] , voltage) ;
         Diodes[name] = D ;
         DiodeNames.push_back(name) ;
+        components.push_back("D" + name) ;
         nodes[words[2]].addConnectedNode(words[3]) ;
         nodes[words[3]].addConnectedNode(words[2]) ;
         cout << "diode " << name << " with model " << model << " added successful between " << words[2] << " & " << words[3] << '.' << endl;
+    }
+
+    static void addGround (vector <string> ff){
+        if (ff.size() != 3){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
+        string name = ff[2] ;
+        if (name == ""){
+            cerr << "Error: Syntax error\n" ;
+            return;
+        }
+        if (nodes.find(name) == nodes.end()){
+            Nodes N(name);
+            nodes[name] = N;
+            nodeNames.push_back(name);
+        }
+        nodes[name].setGround() ;
+        components.push_back("GND");
+        cout << "Node " << name << " set as ground.\n" ;
     }
 
     static void deleteResistor (string name) {
@@ -346,25 +438,73 @@ public:
         cout << "Diode " << name << " deleted successful." << endl;
     }
 
+    static void displayComponents () {
+        if (components.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<capacitorNames.size()-1 ; i++){
+            cout << components[i] << ", " ;
+        }
+        cout << components[components.size() - 1] << '\n' ;
+    }
+    static void displayResistors () {
+        if (resistorsNames.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<resistorsNames.size()-1 ; i++){
+            cout << "R" << resistorsNames[i] << ", " ;
+        }
+        cout <<"R"<< resistorsNames[resistorsNames.size()-1] << '\n' ;
+    }
+    static void displayCapacitors () {
+        if (capacitorNames.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<capacitorNames.size()-1 ; i++){
+            cout << "C" << capacitorNames[i] << ", " ;
+        }
+        cout <<"C"<< capacitorNames[capacitorNames.size()-1] << '\n' ;
+    }
+
+    static void displayInductors () {
+        if (inductorNames.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<inductorNames.size()-1 ; i++){
+            cout << "L" << inductorNames[i] << ", " ;
+        }
+        cout <<"L"<< inductorNames[inductorNames.size()-1] << '\n' ;
+    }
+    static void displayDiodes () {
+        if (DiodeNames.size() == 0 ){
+            cerr << "empty!\n" ;
+            return;
+        }
+        for (int i=0 ; i<DiodeNames.size()-1 ; i++){
+            cout << "D" << DiodeNames[i] << ", " ;
+        }
+        cout <<"D"<< DiodeNames[DiodeNames.size()-1] << '\n' ;
+    }
+
     static void input_handelling(vector<string> words) {
         if (words.size() >= 3 && words[0] == "add" && words[1] == "node") {
-            view::addNode(words[2]) ;
+            view::addNode(words) ;
         }
         else if (words[0] == ".rename") {
-            if (words[1] == "node") {
-                if (words.size() != 4) {
-                    cerr << "ERROR: Invalid syntax - correct format:\n";
-                    return;
-                }
+            if (words[1] == "node" && words.size() == 4) {
                 renameNode(words[2], words[3]);
+                return;
             }
-            cerr << "ERROR: Invalid syntax - correct format:\n";
-            return;
+            cerr << "ERROR: Invalid syntax - correct format:\n" << ".rename node <old_name> <new_name>\n";
         }
         else if (words.size() == 1 && words[0] == ".nodes") {
             view::show_NodesList(nodeNames);
         }
-        else if (words.size() == 5 && words[0] == "add" ){
+        else if (words.size() >= 3 && words[0] == "add" ){
             if (words[1][0] == 'R'){
                 addResistor(words) ;
             } else if (words[1][0] == 'C'){
@@ -373,6 +513,8 @@ public:
                 addInductor(words) ;
             } else if (words[1][0] == 'D'){
                 addDiode(words) ;
+            } else if (words[1] == "GND"){
+                addGround(words) ;
             }
             else {
                 cerr << "Error: Element "<< words[1].substr(1) <<" not found in library\n" ;
@@ -391,6 +533,21 @@ public:
             }
             else {
                 cerr << "Error: Syntax error\n";
+            }
+        }
+        else if (words[0] == ".list"){
+            if (words.size() == 1){
+                displayComponents() ;
+            } else if (words.size() == 2){
+                if (words[1] == "R") {
+                    displayResistors() ;
+                } else if (words[1] == "L"){
+                    displayInductors();
+                } else if (words[1] == "D"){
+                    displayDiodes() ;
+                } else if (words[0] == "C"){
+                    displayCapacitors() ;
+                }
             }
         }
         else {
@@ -418,13 +575,15 @@ int main() {
     string inp;
     while (getline(cin, inp)) {
         vector<string> words = processInputToVector(inp);
+
+        if (words.empty()) continue;
+
         if (words[0] == "end") {
             break;
         }
-        if (words.size() == 0) continue;
+
         view::input_handelling(words);
     }
-
 
     return 0;
 }
