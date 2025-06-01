@@ -10,6 +10,7 @@
 #include "Nodes.h"
 #include "Components.h"
 #include "Element.h" // Assuming Element provides static utility functions
+#include "ElementException.h"
 
 // Definition of static member variables
 std::map<std::string, Nodes> view::nodes;
@@ -81,279 +82,389 @@ bool view::renameNode(const std::string& oldName, const std::string& newName) {
 }
 
 void view::addResistor(std::vector<std::string> words) {
-    if (words.size() != 5) {
-        std::cerr << "Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 5) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "Resistor");
+        }
+
+        std::string name = words[1].substr(1);
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "Resistor");
+        }
+
+        if (resistors.find(name) != resistors.end()) {
+            throw ElementException(ElementException::DUPLICATE_ELEMENT, "Resistor", name);
+        }
+
+        if (words[2] == words[3]) {
+            throw ElementException(ElementException::SAME_NODES, "Resistor");
+        }
+
+        double val = 0.0;
+        int pow = -1;
+        int trueValue = 0;
+        Element::parsePhysicalValue(words[4], val, pow, trueValue);
+
+        if (trueValue == -1) {
+            throw ElementException(ElementException::INVALID_PHYSICAL_VALUE, "Resistor");
+        }
+
+        if (val <= 0 || pow == -1) {
+            throw ElementException(ElementException::NONPOSITIVE_VALUE, "Resistor");
+        }
+
+        if (nodes.find(words[2]) == nodes.end()) {
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+
+        if (nodes.find(words[3]) == nodes.end()) {
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+
+        Resistor R(name, words[2], words[3], val, pow);
+        resistors[name] = R;
+        resistorsNames.push_back(name);
+        components.push_back("R" + name);
+        nodes[words[2]].addConnectedNode(words[3]);
+        nodes[words[3]].addConnectedNode(words[2]);
+
+        std::cout << "Resistor " << name << " with resistance "
+                  << val << "e" << pow << " added successfully between "
+                  << words[2] << " & " << words[3] << '.' << std::endl;
     }
-    std::string name = words[1].substr(1);
-    if (name == "") {
-        std::cerr << "Error: empty name\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "Resistor Error: " << e.what() << std::endl;
     }
-    if (resistors.find(name) != resistors.end()) {
-        std::cerr << "Error: Resistor " << name << " already exists in the circuit\n";
-        return;
-    }
-    if (words[2] == words[3]) {
-        std::cerr << "Error: nodes must be different\n";
-        return;
-    }
-    double val = 0.0;
-    int pow = -1;
-    int trueValue = 0;
-    Element::parsePhysicalValue(words[4], val, pow, trueValue);
-    if (trueValue == -1) {
-        return;
-    }
-    if (val <= 0 || pow == -1) { // Assuming pow == -1 indicates an issue with parsing, adjust if needed
-        std::cerr << "Error: Resistance cannot be zero or negative\n";
-        return;
-    }
-    if (nodes.find(words[2]) == nodes.end()) {
-        Nodes N(words[2]);
-        nodes[words[2]] = N;
-        nodeNames.push_back(words[2]);
-    }
-    if (nodes.find(words[3]) == nodes.end()) {
-        Nodes N(words[3]);
-        nodes[words[3]] = N;
-        nodeNames.push_back(words[3]);
-    }
-    Resistor R(name, words[2], words[3], val, pow);
-    resistors[name] = R;
-    resistorsNames.push_back(name);
-    components.push_back("R" + name);
-    nodes[words[2]].addConnectedNode(words[3]);
-    nodes[words[3]].addConnectedNode(words[2]);
-    std::cout << "Resistor " << name << " with resistance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << std::endl;
 }
 
 void view::addCapacitor(std::vector<std::string> words) {
-    if (words.size() != 5) {
-        std::cerr << "Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 5) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "Capacitor");
+        }
+
+        std::string name = words[1].substr(1);
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "Capacitor");
+        }
+
+        if (capacitors.find(name) != capacitors.end()) {
+            throw ElementException(ElementException::DUPLICATE_ELEMENT, "Capacitor", name);
+        }
+
+        if (words[2] == words[3]) {
+            throw ElementException(ElementException::SAME_NODES, "Capacitor");
+        }
+
+        double val = 0.0;
+        int pow = -1;
+        int trueValue = 0;
+        Element::parsePhysicalValue(words[4], val, pow, trueValue);
+        if (trueValue == -1) {
+            throw ElementException(ElementException::INVALID_PHYSICAL_VALUE, "Capacitor");
+        }
+
+        if (val <= 0 || pow == -1) {
+            throw ElementException(ElementException::NONPOSITIVE_VALUE, "Capacitor");
+        }
+
+        // ادامه کد اصلی بدون تغییر
+        if (nodes.find(words[2]) == nodes.end()) {
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+        if (nodes.find(words[3]) == nodes.end()) {
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+        Capacitor C(name, words[2], words[3], val, pow);
+        capacitors[name] = C;
+        capacitorNames.push_back(name);
+        components.push_back("C" + name);
+        nodes[words[2]].addConnectedNode(words[3]);
+        nodes[words[3]].addConnectedNode(words[2]);
+
+        std::cout << "Capacitor " << name << " with capacitance " << val << "e" << pow
+                  << " added successfully between " << words[2] << " & " << words[3] << '.' << std::endl;
     }
-    std::string name = words[1].substr(1);
-    if (name == "") {
-        std::cerr << "Error: empty name\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "Capacitor Error: " << e.what() << std::endl;
     }
-    if (capacitors.find(name) != capacitors.end()) {
-        std::cerr << "Error: Capacitor " << name << " already exists in the circuit\n";
-        return;
-    }
-    if (words[2] == words[3]) {
-        std::cerr << "Error: nodes must be different\n";
-        return;
-    }
-    double val = 0.0;
-    int pow = -1;
-    int trueValue = 0;
-    Element::parsePhysicalValue(words[4], val, pow, trueValue);
-    if (trueValue == -1) {
-        return;
-    }
-    if (val <= 0 || pow == -1) {
-        std::cerr << "Error: Capacitor cannot be zero or negative\n";
-        return;
-    }
-    if (nodes.find(words[2]) == nodes.end()) {
-        Nodes N(words[2]);
-        nodes[words[2]] = N;
-        nodeNames.push_back(words[2]);
-    }
-    if (nodes.find(words[3]) == nodes.end()) {
-        Nodes N(words[3]);
-        nodes[words[3]] = N;
-        nodeNames.push_back(words[3]);
-    }
-    Capacitor C(name, words[2], words[3], val, pow);
-    capacitors[name] = C;
-    capacitorNames.push_back(name);
-    components.push_back("C" + name); // Changed from "L" to "C" for Capacitor
-    nodes[words[2]].addConnectedNode(words[3]);
-    nodes[words[3]].addConnectedNode(words[2]);
-    std::cout << "Capacitor " << name << " with capacitance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << std::endl;
 }
+
 
 void view::addInductor(std::vector<std::string> words) {
-    if (words.size() != 5) {
-        std::cerr << "Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 5) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "Inductor");
+        }
+
+        std::string name = words[1].substr(1);
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "Inductor");
+        }
+
+        if (inductors.find(name) != inductors.end()) {
+            throw ElementException(ElementException::DUPLICATE_ELEMENT, "Inductor", name);
+        }
+
+        if (words[2] == words[3]) {
+            throw ElementException(ElementException::SAME_NODES, "Inductor");
+        }
+
+        double val = 0.0;
+        int pow = -1;
+        int trueValue = 0;
+        Element::parsePhysicalValue(words[4], val, pow, trueValue);
+
+        if (trueValue == -1) {
+            throw ElementException(ElementException::INVALID_PHYSICAL_VALUE, "Inductor");
+        }
+
+        if (val <= 0 || pow == -1) {
+            throw ElementException(ElementException::NONPOSITIVE_VALUE, "Inductor");
+        }
+
+        if (nodes.find(words[2]) == nodes.end()) {
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+
+        if (nodes.find(words[3]) == nodes.end()) {
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+
+        Inductor L(name, words[2], words[3], val, pow);
+        inductors[name] = L;
+        inductorNames.push_back(name);
+        components.push_back("L" + name);
+        nodes[words[2]].addConnectedNode(words[3]);
+        nodes[words[3]].addConnectedNode(words[2]);
+
+        std::cout << "Inductor " << name << " with inductance "
+                  << val << "e" << pow << " added successfully between "
+                  << words[2] << " & " << words[3] << '.' << std::endl;
     }
-    std::string name = words[1].substr(1);
-    if (name == "") {
-        std::cerr << "Error: empty name\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "Inductor Error: " << e.what() << std::endl;
     }
-    if (inductors.find(name) != inductors.end()) {
-        std::cerr << "Error: inductor " << name << " already exists in the circuit\n";
-        return;
-    }
-    if (words[2] == words[3]) {
-        std::cerr << "Error: nodes must be different\
-";
-        return;
-    }
-    double val = 0.0;
-    int pow = -1;
-    int trueValue = 0;
-    Element::parsePhysicalValue(words[4], val, pow, trueValue);
-    if (trueValue == -1) {
-        return;
-    }
-    if (val <= 0 || pow == -1) {
-        std::cerr << "Error: Inductor cannot be zero or negative\n";
-        return;
-    }
-    if (nodes.find(words[2]) == nodes.end()) {
-        Nodes N(words[2]);
-        nodes[words[2]] = N;
-        nodeNames.push_back(words[2]);
-    }
-    if (nodes.find(words[3]) == nodes.end()) {
-        Nodes N(words[3]);
-        nodes[words[3]] = N;
-        nodeNames.push_back(words[3]);
-    }
-    Inductor L(name, words[2], words[3], val, pow);
-    inductors[name] = L;
-    inductorNames.push_back(name);
-    components.push_back("L" + name);
-    nodes[words[2]].addConnectedNode(words[3]);
-    nodes[words[3]].addConnectedNode(words[2]);
-    std::cout << "Inductor " << name << " with inductance " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << std::endl;
 }
+
 
 void view::addDiode(std::vector<std::string> words) {
-    if (words.size() != 5) {
-        std::cerr << "Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 5) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "Diode");
+        }
+
+        std::string name = words[1].substr(1);
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "Diode");
+        }
+
+        if (Diodes.find(name) != Diodes.end()) {
+            throw ElementException(ElementException::DUPLICATE_ELEMENT, "Diode", name);
+        }
+
+        if (words[2] == words[3]) {
+            throw ElementException(ElementException::SAME_NODES, "Diode");
+        }
+
+        std::string model = words[4];
+        if (model != "D" && model != "Z") {
+            throw ElementException(ElementException::INVALID_MODEL, "Diode", model);
+        }
+
+        if (nodes.find(words[2]) == nodes.end()) {
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+
+        if (nodes.find(words[3]) == nodes.end()) {
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+
+        double voltage = 0;
+        if (model == "Z") {
+            voltage = 0.7;
+        }
+
+        Diode D(name, words[2], words[3], voltage);
+        Diodes[name] = D;
+        DiodeNames.push_back(name);
+        components.push_back("D" + name);
+        nodes[words[2]].addConnectedNode(words[3]);
+        nodes[words[3]].addConnectedNode(words[2]);
+
+        std::cout << "Diode " << name << " with model " << model
+                  << " added successfully between " << words[2]
+                  << " & " << words[3] << '.' << std::endl;
     }
-    std::string name = words[1].substr(1);
-    if (name == "") {
-        std::cerr << "Error: empty name\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "Diode Error: " << e.what() << std::endl;
     }
-    if (Diodes.find(name) != Diodes.end()) {
-        std::cerr << "Error: diode " << name << " already exists in the circuit\n";
-        return;
-    }
-    if (words[2] == words[3]) {
-        std::cerr << "Error: nodes must be different\n";
-        return;
-    }
-    std::string model = words[4];
-    if (model != "D" && model != "Z") {
-        std::cerr << "Error: Model " << model << " not found in library";
-        return;
-    }
-    if (nodes.find(words[2]) == nodes.end()) {
-        Nodes N(words[2]);
-        nodes[words[2]] = N;
-        nodeNames.push_back(words[2]);
-    }
-    if (nodes.find(words[3]) == nodes.end()) {
-        Nodes N(words[3]);
-        nodes[words[3]] = N;
-        nodeNames.push_back(words[3]);
-    }
-    double voltage = 0;
-    if (model == "Z") { voltage = 0.7; } // This implies a Zener diode, typically 0.7V for Si
-    Diode D(name, words[2], words[3], voltage);
-    Diodes[name] = D;
-    DiodeNames.push_back(name);
-    components.push_back("D" + name);
-    nodes[words[2]].addConnectedNode(words[3]);
-    nodes[words[3]].addConnectedNode(words[2]);
-    std::cout << "diode " << name << " with model " << model << " added successful between " << words[2] << " & " << words[3] << '.' << std::endl;
 }
+
 
 void view::addGround(std::vector<std::string> words) {
-    if (words.size() != 3) {
-        std::cerr << "Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 3) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "Ground");
+        }
+
+        std::string name = words[2];
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "Ground");
+        }
+
+        if (nodes.find(name) == nodes.end()) {
+            Nodes N(name);
+            nodes[name] = N;
+            nodeNames.push_back(name);
+        }
+
+        nodes[name].setGround();
+        components.push_back("GND");
+
+        std::cout << "Node " << name << " set as ground.\n";
     }
-    std::string name = words[2];
-    if (name == "") {
-        std::cerr << "Error: empty name\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "Ground Error: " << e.what() << std::endl;
     }
-    if (nodes.find(name) == nodes.end()) {
-        Nodes N(name);
-        nodes[name] = N;
-        nodeNames.push_back(name);
-    }
-    nodes[name].setGround();
-    // It seems like GND is added to components without a specific name like "GND1", just "GND".
-    // If you need unique ground identifiers, adjust this.
-    components.push_back("GND");
-    std::cout << "Node " << name << " set as ground.\n";
 }
+
 
 void view::addVoltageSource(std::vector<std::string> words) {
-    if (words.size() != 5) {
-        std::cerr << " Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 5) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "VoltageSource");
+        }
+
+        std::string name = words[1].substr(13); // "VoltageSource" is 13 chars
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "VoltageSource");
+        }
+
+        if (voltageSources.find(name) != voltageSources.end()) {
+            throw ElementException(ElementException::DUPLICATE_ELEMENT, "VoltageSource", name);
+        }
+
+        if (words[2] == words[3]) {
+            throw ElementException(ElementException::SAME_NODES, "VoltageSource");
+        }
+
+        if (!Element::isValidDecimal(words[4])) {
+            throw ElementException(ElementException::INVALID_PHYSICAL_VALUE, "VoltageSource", words[4]);
+        }
+
+        double val = 0.0;
+        int pow = -1;
+        int trueValue = 0;
+        Element::extractPhysicalValue(words[4], val, pow, trueValue);
+
+        if (val <= 0 || pow == -1) {
+            throw ElementException(ElementException::NONPOSITIVE_VALUE, "VoltageSource");
+        }
+
+        if (nodes.find(words[2]) == nodes.end()) {
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+
+        if (nodes.find(words[3]) == nodes.end()) {
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+
+        VoltageSource V(name, words[2], words[3], val, pow);
+        voltageSources[name] = V;
+        voltageSourceName.push_back(name);
+        components.push_back("V" + name);
+        nodes[words[2]].addConnectedNode(words[3]);
+        nodes[words[3]].addConnectedNode(words[2]);
+
+        std::cout << "VoltageSource " << name << " with voltage " << val << "e" << pow
+                  << " added successfully between " << words[2] << " & " << words[3] << '.' << std::endl;
     }
-    // Correctly extract name from "VoltageSource<name>"
-    std::string name = words[1].substr(13); // "VoltageSource" is 13 characters
-    if (voltageSources.find(name) != voltageSources.end()) {
-        std::cerr << "Error: voltageSource " << name << " already exists in the circuit\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "VoltageSource Error: " << e.what() << std::endl;
     }
-    if (words[2] == words[3]) {
-        std::cerr << "Error: nodes must be different\n";
-        return;
-    }
-    if (Element::isValidDecimal(words[4]) == false) {
-        std::cerr << "invalid voltage.\n";
-        return;
-    }
-    double val = 0.0;
-    int pow = -1;
-    int trueValue = 0;
-    Element::extractPhysicalValue(words[4], val, pow, trueValue); // Renamed from parsePhysicalValue in addResistor
-    VoltageSource V(name, words[2], words[3], val, pow);
-    voltageSources[name] = V;
-    voltageSourceName.push_back(name);
-    components.push_back("V" + name);
-    nodes[words[2]].addConnectedNode(words[3]);
-    nodes[words[3]].addConnectedNode(words[2]);
-    std::cout << "VoltageSource " << name << " with voltage " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << std::endl;
 }
 
+
 void view::addCurrentSource(std::vector<std::string> words) {
-    if (words.size() != 5) {
-        std::cerr << " Error: Syntax error\n";
-        return;
+    try {
+        if (words.size() != 5) {
+            throw ElementException(ElementException::SYNTAX_ERROR, "CurrentSource");
+        }
+
+        std::string name = words[1].substr(13); // "CurrentSource" is 13 characters
+        if (name.empty()) {
+            throw ElementException(ElementException::EMPTY_NAME, "CurrentSource");
+        }
+
+        if (currentSources.find(name) != currentSources.end()) {
+            throw ElementException(ElementException::DUPLICATE_ELEMENT, "CurrentSource", name);
+        }
+
+        if (words[2] == words[3]) {
+            throw ElementException(ElementException::SAME_NODES, "CurrentSource");
+        }
+
+        if (!Element::isValidDecimal(words[4])) {
+            throw ElementException(ElementException::INVALID_PHYSICAL_VALUE, "CurrentSource", words[4]);
+        }
+
+        double val = 0.0;
+        int pow = -1;
+        int trueValue = 0;
+        Element::extractPhysicalValue(words[4], val, pow, trueValue);
+
+        if (val <= 0 || pow == -1) {
+            throw ElementException(ElementException::NONPOSITIVE_VALUE, "CurrentSource");
+        }
+
+        if (nodes.find(words[2]) == nodes.end()) {
+            Nodes N(words[2]);
+            nodes[words[2]] = N;
+            nodeNames.push_back(words[2]);
+        }
+
+        if (nodes.find(words[3]) == nodes.end()) {
+            Nodes N(words[3]);
+            nodes[words[3]] = N;
+            nodeNames.push_back(words[3]);
+        }
+
+        CurrentSource C(name, words[2], words[3], val, pow);
+        currentSources[name] = C;
+        currentSourceName.push_back(name);
+        components.push_back("I" + name);
+        nodes[words[2]].addConnectedNode(words[3]);
+        nodes[words[3]].addConnectedNode(words[2]);
+
+        std::cout << "CurrentSource " << name << " with current " << val << "e" << pow
+                  << " added successfully between " << words[2] << " & " << words[3] << '.' << std::endl;
     }
-    // Correctly extract name from "CurrentSource<name>"
-    std::string name = words[1].substr(13); // "CurrentSource" is 13 characters
-    if (currentSources.find(name) != currentSources.end()) {
-        std::cerr << "Error: currentSource " << name << " already exists in the circuit\n";
-        return;
+    catch (const ElementException& e) {
+        std::cerr << "CurrentSource Error: " << e.what() << std::endl;
     }
-    if (words[2] == words[3]) {
-        std::cerr << "Error: nodes must be different\n";
-        return;
-    }
-    if (Element::isValidDecimal(words[4]) == false) {
-        std::cerr << "invalid current.\n";
-        return;
-    }
-    double val = 0.0;
-    int pow = -1;
-    int trueValue = 0;
-    Element::extractPhysicalValue(words[4], val, pow, trueValue);
-    CurrentSource C(name, words[2], words[3], val, pow);
-    currentSources[name] = C;
-    currentSourceName.push_back(name);
-    components.push_back("I" + name);
-    nodes[words[2]].addConnectedNode(words[3]);
-    nodes[words[3]].addConnectedNode(words[2]);
-    std::cout << "CurrentSource " << name << " with current " << val << "e" << pow << " added successful between " << words[2] << " & " << words[3] << '.' << std::endl;
 }
+
 
 void view::addSinusoidalSource(std::vector<std::string> words) {
     // This function was empty in the provided code.

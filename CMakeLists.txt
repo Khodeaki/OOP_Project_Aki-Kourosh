@@ -11,4 +11,5 @@ add_executable(untitled20
         view.cpp
         Components.cpp
         Element.cpp    # Add this if you have it
+        ElementException.cpp
 )

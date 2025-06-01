@@ -3,6 +3,7 @@
 #include "Element.h"
 #include "Components.h"
 #include "view.h"
+#include "ElementException.h"
 using namespace std;
 
 std::vector<std::string> processInputToVector(const std::string& input) {
